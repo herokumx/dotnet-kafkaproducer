@@ -1,0 +1,201 @@
+﻿@{
+    ViewData["Title"] = "Web Traffic";
+}
+
+<div class="container-fluid">
+    <div class="col-md-3">
+        <div class="mobile-content">
+            <div class="mobile-monitor">
+                <div class="row">
+                    <img id="imgStatus" src="/images/KafkaHeader.png" alt="Heroku Kafka">
+                </div>
+                <div class="row">
+                    <label for="trafficUrl">Randomized Data Stream Origin</label>
+                    <input type="text" class="form-control" id="trafficUrl" value="www.budweisertours.com" placeholder="www.budweisertours.com">
+                </div>
+                <div class="row">
+                    <label for="trafficUrl">Number Of Messages</label>
+                    <input type="number" class="form-control" id="noOfReq" min="1" placeholder="100" value="100" />
+                </div>
+                <div>
+                    <div id="lblMessage">&nbsp;</div>
+                    <input id="btnSend" type="button" value="Start Sending Data" class="btn-custom" />
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="table-responsive" style="max-height:600px;overflow-y: auto;">
+            <table id="trafficDataTable" class="table">
+                <tr>
+                    <th>
+                        Data is streamed to the Heroku Kafka Topic
+                    </th>
+                    <th id="totalCount" style="float:right;font-weight: 100;">
+                        Click Start Streaming Data
+                    </th>
+                </tr>
+            </table>
+        </div>
+    </div>
+</div>
+
+@section Scripts{
+    <script type="text/javascript">
+        var urlAction = '/Traffic/SendData';
+        var regUrlPattern = /^(http[s]?:\/\/){0,1}(www\.){0,1}[a-zA-Z0-9\.\-]+\.[a-zA-Z]{2,5}[\.]{0,1}/;
+        var isSentData = false;
+        var startProcess, btnText, btnBgColor;
+        var cookieID = "29481765";
+        var httpVerb = ['GET', 'PUT'];
+        var eventSource = ['LandingPage', 'FacebookTab', 'Microsite', 'Web'];
+        var trafficUrl, noOfReq, reqSpan;
+        var trafficsData = [];
+
+        $(function () {
+            $('#spinner').hide();
+            $('#lblMessage').addClass('default-status-message').html('&nbsp;');
+            bindTrafficDataTable();
+            $('input').on('keyup', function () {
+                $(this).css({ "border": "" });
+            });
+            $('#btnSend').on('click', function (e) {
+                resetTrafficTable();
+                if ($('#trafficUrl').val().lastIndexOf('/') != -1)
+                    trafficUrl = $('#trafficUrl').val();
+                else
+                    trafficUrl = $('#trafficUrl').val() + '/';
+                noOfReq = parseInt($('#noOfReq').val());
+                if (!regUrlPattern.test(trafficUrl)) {
+                    $('#trafficUrl').css({ "border": "1px solid red" }).focus();
+                    return false;
+                }
+                if (isNaN(noOfReq) || noOfReq < 1) {
+                    $('#noOfReq').css({ "border": "1px solid red" }).focus();
+                    return false;
+                }
+                isSentData = !isSentData;
+                btnText = btnBgColor = undefined;
+                if (isSentData) {
+                    var traffic;
+                    if (isNaN(noOfReq))
+                        return;
+
+                    reqSpan = 0;
+                    for (var i = 0; i < noOfReq; i++) {
+                        setTimeout(function (i, reqSpan) {
+                            traffic = new webtraffic();
+                            switch (reqSpan) {
+                                case 0:
+                                    traffic.eventSource = eventSource[0];
+                                    break
+                                case 1:
+                                    traffic.eventSource = eventSource[1];
+                                    break
+                                case 2:
+                                    traffic.eventSource = eventSource[2];
+                                    break
+								case 3:
+                                    traffic.eventSource = eventSource[3];
+                                    break
+                                default:
+                                    traffic.eventSource = eventSource[3];
+                                    traffic.cookieID = getRandomCookie();
+                                    break
+                            }
+                            startSendingData(traffic, i);
+                        }, 1000, i, reqSpan++);
+
+                        if (reqSpan == 25)
+                            reqSpan = 0;
+                    }
+                }
+                else {
+                    stopSendingData();
+                }
+            });
+        });
+
+        function resetTrafficTable() {
+            var tableDataRow;
+            var trafficTable = $('#trafficDataTable');
+            tableDataRow = trafficTable.find("tr:gt(0)").remove();
+            trafficTable.find('th[id=totalCount]').html('Total Count: 0');
+        }
+
+        function bindTrafficDataTable(newRecord) {
+            var tableDataRow;
+            var trafficTable = $('#trafficDataTable');
+            tableDataRow = trafficTable.find("tr:gt(0)");
+            if (newRecord) {
+                tableDataRow.find('td.emptyrow').remove();
+                var jsonStr = JSON.stringify(newRecord);
+                trafficTable.append("<tr><td colspan='2'><div class='wrapword'>" + jsonStr + "</div></td></tr>");
+                tableDataRow = trafficTable.find("tr:gt(0)");
+                trafficTable.find('th[id=totalCount]').html('Total Count:' + tableDataRow.length);
+            }
+            if (tableDataRow.length == 0) {
+                tableDataRow.remove();
+                trafficTable.append("<tr><td style='text-align:center;' class='emptyrow' colspan='2'>Click Start Sending Data</td></tr>");
+            }
+        }
+        function getRandomCookie() {
+            var cookie = Math.round(Math.random() * 29481765);
+            if (cookie == 29481765)
+                cookie = Math.round(Math.random() * 29481765)
+            return cookie;
+        }
+        function getRandomIP() {
+            return Math.round(Math.random() * 256) + "." + Math.round(Math.random() * 256) + "." + Math.round(Math.random() * 256) + "." + Math.round(Math.random() * 256);
+        }
+        function getRandomHttpVerb() {
+            return httpVerb[Math.floor(Math.random() * httpVerb.length)];
+        }
+        function webtraffic() {
+            var traffic = {};
+            traffic.IPAddress = getRandomIP();
+            traffic.DateTimeStamp = new Date();
+            traffic.HTTPMethod = getRandomHttpVerb();
+            traffic.RequestedURL = trafficUrl + Math.random().toString(36).substr(7);
+            traffic.HTTPProtocol = "HTTP/1.1";
+            traffic.ServerResponse = "200";
+            traffic.RequestSize = "5017";
+            traffic.BrowserRequestHeader = "[Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/53.0.2785.89 Safari/537.36]";
+            traffic.cookieID = "29481765";
+            traffic.eventSource = "Web";
+            return traffic;
+        }
+        function stopSendingData() {
+            isSentData = false;
+            if ($) {
+                $('#btnSend').attr('value', 'Start Sending Data');
+                $('#lblMessage').css({ 'background-color': '' }).html('&nbsp;');
+                $('#spinner').hide();
+            }
+        }
+
+        function startSendingData(traffic, index) {
+            $('#btnSend').attr('value', (isSentData ? 'Stop Sending Data' : 'Start Sending Data'));
+            $('#spinner').show();
+            bindTrafficDataTable(traffic);
+            $.post(urlAction, { webTraffic: traffic }, function (data) {
+                //console.log('log req:' + index);
+                $('#spinner').hide();
+                if (index == noOfReq - 1) {
+                    btnBgColor = "green";
+                    btnText = "Completed Successfully";
+                    stopSendingData();
+                }
+                if (btnText && btnBgColor) {
+                    $('#lblMessage').css({
+                        'background-color': btnBgColor,
+                    }).html(btnText);
+                    return;
+                }
+                else {
+                    $('#lblMessage').addClass('default-status-message').html('&nbsp;');
+                }
+            });
+        }
+    </script>
+}
